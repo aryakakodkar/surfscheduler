@@ -3,17 +3,15 @@ This module defines the abstract Constraint class, which is used to define arbit
 of stabilisers in a topological code.
 """
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
-from typing import Union
+from dataclasses import dataclass
+from typing import Iterable, Union
 
 from .stabilizer import Stabilizer
 
-
-class Constraint(ABC):
-    @abstractmethod
-    def is_satisfied(self, value: Union[Stabilizer, Iterable[Stabilizer]]) -> bool:
-        pass
-
-    @abstractmethod
-    def applies_to(self, stabilizer: Stabilizer) -> bool:
-        pass
+@dataclass(frozen=True, slots=True)
+class StabilizerPairContext():
+    """
+    A context for a pair of stabilizers, which can be used to define constraints on their scheduling.
+    """
+    shared_slots: Iterable[int]
+    bits_per_layer: int
