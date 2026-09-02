@@ -1,13 +1,21 @@
 """
 This module takes as input a topological code and a set of constraints and outputs a compiled
-representation of the code that can be used by the schedule searcher.
+representation of the code, constraints, and problem.
 """
 from typing import Callable, Iterable, Union
 from collections import defaultdict
+from dataclasses import dataclass
 
-from .constraint import StabilizerPairContext
 from .stabilizer import Stabilizer, TopologicalCode
-from .expressions import Expression
+from .expressions import Expression, ConstantExpression, ABeforeBCount, BBeforeACount, And, Equal
+
+@dataclass(frozen=True, slots=True)
+class StabilizerPairContext():
+    """
+    A context for a pair of stabilizers, which can be used to define constraints on their scheduling.
+    """
+    shared_slots: Iterable[int]
+    bits_per_layer: int
 
 class CompiledTopologicalCode:
     def __init__(self, topological_code: TopologicalCode):
@@ -37,19 +45,30 @@ class CompiledProblem:
         self._stabilizer_order = stabilizer_order if stabilizer_order is not None else self._determine_stabilizer_order()
 
     def _determine_stabilizer_order(self) -> Iterable[Stabilizer]:
-        return self._topological_code.stabilizers # TODO: implement heuristic
+        return self._code.stabilizers # TODO: implement heuristic
 
-class CompiledLocalConstraint:
-    def __init__(self, constraint: Expression):
-        pass
-        
-    def _check(stabilizers: Union[Stabilizer, Iterable[Stabilizer]]) -> Callable[[Iterable[int]]]:
-        """
-        Check if the given schedules satisfy the constraint.
+def evaluate_expression(expr: Expression, values: dict):
+    """
+    Evaluate an Expression object and return a boolean value.
+    """
+    if isinstance(expr, ConstantExpression):
+        return expr.value
+    elif isinstance(expr, ABeforeBCount) or isinstance(expr, BBeforeACount):
+        return values[expr.name]
+    elif isinstance(expr, And):
+        return evaluate_expression(expr.left, values) and evaluate_expression(expr.right, values)
+    elif isinstance(expr, Equal):
+        return evaluate_expression(expr.left, values) == evaluate_expression(expr.right, values)
+    else:
+        raise NotImplementedError(f"The expression {expr.__class__.__name__} has not yet been implemented")
 
-        Returns
-        -------
-        A function that takes in a list of schedules and returns True if the constraint is satisfied.
-        """
-        pass
+def collect_loop_values(expr: Expression):
+    values = set()
 
+    if isinstance(expr, ABeforeBCount) or isinstance(expr, BBeforeACount):
+        values.add(expr.name)
+    elif isinstance(expr, And) or isinstance(expr, Equal):
+        values = values.union(collect_loop_values(expr.left)).union(collect_loop_values(expr.right))
+    # ignore all other cases
+
+    return values
